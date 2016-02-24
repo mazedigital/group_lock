@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extension id="group_lock" status="released" xmlns="http://symphony-cms.com/schemas/extension/1.0">
+	<name>Group Filter</name>
+	<description>Filters backend according to Author Groups</description>
+	<repo type="github">https://github.com/mazedigital/group_lock</repo>
+	<authors>
+		<author>
+			<name symphony="gunglien">Maze Digital</name>
+			<email>jon@maze.digital</email>
+			<website>http://maze.digital</website>
+		</author>
+	</authors>
+	<releases>
+		<release version="1.0.0" date="2016-02-24" min="2.3" max="2.7.x" />
+		<release version="0.2" date="2015-05-13" min="2.3" max="2.6.x" />
+		<release version="0.1.1" date="2015-05-07" min="2.3" max="2.6.x" />
+	</releases>
+</extension>
