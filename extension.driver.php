@@ -397,6 +397,7 @@ class extension_group_lock extends Extension {
 		$this->initialiseCookie();
 
 		$group = $this->cookie->get('group');
+		// var_dump($group);die;
 		if ((!isset($group) || empty($group)) && is_object(Symphony::Author())){
 
 			$group = Symphony::Database()->fetchVar('id_group',0,'SELECT id_group FROM `tbl_group_lock_authors` WHERE `id_author` = '.Symphony::Author()->get('id').';');
@@ -418,6 +419,10 @@ class extension_group_lock extends Extension {
 	//sets the current group
 	private function setCurrentGroup($id){
 		$this->initialiseCookie();
+		if ($id == 'all' && !$this->superseedsPermissions()){
+			// this user is not allowed to view all so deny this option
+			return;
+		}
 		$this->cookie->set('group',$id);
 	}
 
@@ -457,7 +462,7 @@ class extension_group_lock extends Extension {
 
 		$sectionID = (string)Symphony::Configuration()->get('section_id', 'group_lock');
 
-		if ($groupID){
+		if ($groupID && $groupID !=='all'){
 
 			if ($context['section-id'] == $sectionID && !($this->superseedsPermissions() ) ){
 
@@ -510,7 +515,7 @@ class extension_group_lock extends Extension {
 
 		$groupID = $this->getCurrentGroup();
 
-		if ($groupID && !$this->superseedsPermissions()){
+		if ($groupID && $groupID !=='all'){
 	        $context['where'] = " `tbl_group_lock_authors`.id_group in ({$groupID})";
 	        $context['joins'] = " LEFT JOIN `tbl_group_lock_authors` on `tbl_group_lock_authors`.id_author = a.id ";
 		}
@@ -524,7 +529,7 @@ class extension_group_lock extends Extension {
 
 		$groupID = $this->getCurrentGroup();
 
-		if ($groupID){
+		if ($groupID && $groupID !=='all'){
 
 			if ($context['section-id'] == (string)Symphony::Configuration()->get('section_id', 'group_lock')){
 
@@ -552,7 +557,7 @@ class extension_group_lock extends Extension {
 
 		$groupID = $this->getCurrentGroup();
 
-		if ($groupID){
+		if ($groupID && $groupID !=='all'){
 
 			if ($context['section-id'] == (string)Symphony::Configuration()->get('section_id', 'group_lock')){
 
@@ -688,7 +693,12 @@ class extension_group_lock extends Extension {
 		// $LOAD_NUMBER = 935935211;
 
 		if (!empty($_REQUEST['current-group'])){
-			$id_group = Symphony::Database()->fetchVar('id_group',0, 'SELECT `id_group` FROM `tbl_group_lock_authors` WHERE `id_author` = '. Symphony::Author()->get('id') .' AND `id_group` = ' . Symphony::Database()->cleanValue($_REQUEST['current-group']) . ';');
+			if ($_REQUEST['current-group'] !== 'all'){
+				$id_group = Symphony::Database()->fetchVar('id_group',0, 'SELECT `id_group` FROM `tbl_group_lock_authors` WHERE `id_author` = '. Symphony::Author()->get('id') .' AND `id_group` = ' . Symphony::Database()->cleanValue($_REQUEST['current-group']) . ';');
+			} else {
+				//TODO confirm user has access to 'all'
+				$id_group = 'all';
+			}
 			$this->setCurrentGroup($id_group);
 		}
 
@@ -713,10 +723,13 @@ class extension_group_lock extends Extension {
 
 		$currentGroupID = $this->getCurrentGroup();
 
-		if (!empty($currentGroupID)){
+		if ($currentGroupID == 'all'){
+			$selectedGroup = array('value'=>'All','handle'=>'all');
+		} else if (!empty($currentGroupID)){
 			$selectedGroup = current(array_filter($groups,function($group) use ($currentGroupID){
 				return $group->get('id') == $currentGroupID;
 			}));
+			$selectedGroup = array('value' => $selectedGroup->getData('{$fieldID}')['value'], 'handle' => $selectedGroup->getData('{$fieldID}')['handle']);
 		}
 
 		if( empty($selectedGroup)){
@@ -729,6 +742,7 @@ class extension_group_lock extends Extension {
 				$selectedGroup = current(array_filter($groups,function($group) use ($currentGroupID){
 					return $group->get('id') == $currentGroupID;
 				}));
+				$selectedGroup = array('value' => $selectedGroup->getData('{$fieldID}')['value'], 'handle' => $selectedGroup->getData('{$fieldID}')['handle']);
 			}
 		}
 
@@ -737,8 +751,8 @@ class extension_group_lock extends Extension {
 		//if only one group no need to show a dropdown
 		if (sizeof($groups) <= 1){
 			$script = "jQuery(document).ready(function(){ 
-				jQuery('h1 a').text('{$selectedGroup->getData('{$fieldID}')['value']}');
-				jQuery('h1 a').attr('href',jQuery('h1 a').attr('href') + 'view/' + '{$selectedGroup->getData('{$fieldID}')['handle']}' + '/');
+				jQuery('h1 a').text('{$selectedGroup['handle']}');
+				jQuery('h1 a').attr('href',jQuery('h1 a').attr('href') + 'view/' + '{$selectedGroup['handle']}' + '/');
 				if (window.location.pathname == '/admin/publish/general-info/'){
 					var link = $('#nav a').filter(function(index) { return $(this).text() === 'General Info'; });
 					window.location = link.attr('href');
@@ -752,6 +766,7 @@ class extension_group_lock extends Extension {
 			return;
 		}
 
+		$options[] = array('all', 'all' == $currentGroupID , 'All');
 		foreach($groups as $group) {
 			$options[] = array($group->get('id'), $group->get('id') == $currentGroupID , $group->getData($fieldID)['value']);
 		}
@@ -770,8 +785,8 @@ class extension_group_lock extends Extension {
 
 		$script = "jQuery(document).ready(function(){ 
 			jQuery('#nav').append('{$form->generate()}');
-			jQuery('h1 a').text('{$selectedGroup->getData('{$fieldID}')['value']}');
-			jQuery('h1 a').attr('href',jQuery('h1 a').attr('href') + 'view/' + '{$selectedGroup->getData('{$fieldID}')['handle']}' + '/');
+			jQuery('h1 a').text('{$selectedGroup['handle']}');
+			jQuery('h1 a').attr('href',jQuery('h1 a').attr('href') + 'view/' + '{$selectedGroup['handle']}' + '/');
 			if (window.location.pathname == '/admin/publish/general-info/'){
 				var link = $('#nav a').filter(function(index) { return $(this).text() === 'General Info'; });
 				window.location = link.attr('href');
