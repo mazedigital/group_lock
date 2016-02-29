@@ -766,7 +766,9 @@ class extension_group_lock extends Extension {
 			return;
 		}
 
-		$options[] = array('all', 'all' == $currentGroupID , 'All');
+		if($this->superseedsPermissions()){
+			$options[] = array('all', 'all' == $currentGroupID , 'All');
+		}
 		foreach($groups as $group) {
 			$options[] = array($group->get('id'), $group->get('id') == $currentGroupID , $group->getData($fieldID)['value']);
 		}
