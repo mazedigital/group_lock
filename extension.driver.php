@@ -439,7 +439,13 @@ class extension_group_lock extends Extension {
 			$fieldID = (string)Symphony::Configuration()->get('section_'.$sectionID.'_field_id', 'group_lock');
 
 			if ($fieldID){
-				$_REQUEST['prepopulate'][$fieldID] = $this->getCurrentGroup();
+				$fieldRelatedTo = current(FieldManager::fetch(FieldManager::fetch($fieldID)->get('related_field_id')));
+				$parentSection = $fieldRelatedTo->get('parent_section');
+				$sectionID = (string)Symphony::Configuration()->get('section_id', 'group_lock');
+
+				if ($parentSection == $sectionID){
+					$_REQUEST['prepopulate'][$fieldID] = $this->getCurrentGroup();
+				}
 			}
 
 			/*
@@ -753,7 +759,7 @@ class extension_group_lock extends Extension {
 			$script = "jQuery(document).ready(function(){ 
 				jQuery('h1 a').text('{$selectedGroup['handle']}');
 				jQuery('h1 a').attr('href',jQuery('h1 a').attr('href') + 'view/' + '{$selectedGroup['handle']}' + '/');
-				if (window.location.pathname == '/admin/publish/general-info/'){
+				if (window.location.pathname == Symphony.Context.get('symphony') + '/publish/general-info/'){
 					var link = $('#nav a').filter(function(index) { return $(this).text() === 'General Info'; });
 					window.location = link.attr('href');
 				}
@@ -777,7 +783,7 @@ class extension_group_lock extends Extension {
 		$actionURL = '';
 		$pageContext = Administration::instance()->Page->getContext();
 		if(isset($pageContext['page']) && $pageContext['page']!='index'){
-			$actionURL = '/admin/publish/' . $pageContext['section_handle'] .'/';
+			$actionURL = SYMPHONY_URL . '/publish/' . $pageContext['section_handle'] .'/';
 		}
 
 		$form = Widget::Form($actionURL,'post','group-form','group-form');
@@ -789,7 +795,7 @@ class extension_group_lock extends Extension {
 			jQuery('#nav').append('{$form->generate()}');
 			jQuery('h1 a').text('{$selectedGroup['handle']}');
 			jQuery('h1 a').attr('href',jQuery('h1 a').attr('href') + 'view/' + '{$selectedGroup['handle']}' + '/');
-			if (window.location.pathname == '/admin/publish/general-info/'){
+			if (window.location.pathname == Symphony.Context.get('symphony') + '/publish/general-info/'){
 				var link = $('#nav a').filter(function(index) { return $(this).text() === 'General Info'; });
 				window.location = link.attr('href');
 			}
