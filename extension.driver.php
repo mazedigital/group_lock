@@ -208,7 +208,7 @@ class extension_group_lock extends Extension {
 				//if general info link directly to group info - if it does not exist create a new general info entry
 
 				$groupID = $this->getCurrentGroup();
-				$fieldID = '60';
+				$fieldID = $this->getMainSectionPrimaryFieldId();
 				$joins .= " LEFT JOIN `tbl_entries_data_{$fieldID}` AS `group_lock_{$fieldID}` ON (`e`.`id` = `group_lock_{$fieldID}`.entry_id)";
 				$where .= " AND (`group_lock_{$fieldID}`.relation_id = ('{$groupID}') )";
 				$entry = current(EntryManager::fetch(null,12,1,0,$where,$joins));
@@ -392,8 +392,29 @@ class extension_group_lock extends Extension {
 		return false;
 	}
 
+	// get the list of groups this user can access
+	public function getUserGroups(){
+		
+		// See which group this user has:
+		$id_groups = Symphony::Database()->fetchCol('id_group', 'SELECT `id_group` FROM `tbl_group_lock_authors` WHERE `id_author` = '. Symphony::Author()->get('id') .';');
+
+		if (empty($id_groups) && $this->superseedsPermissions()){
+			$id_groups = null;
+		}
+
+		$groups = EntryManager::fetch($id_groups,(string)Symphony::Configuration()->get('section_id', 'group_lock'));
+
+		$options = array();
+
+		foreach($groups as $group) {
+			$options[] = $group->get('id');
+		}
+
+		return $options;
+	}
+
 	// choose the current group which is being viewed. Uses cookies if none set fetches the first one available for the user
-	private function getCurrentGroup(){
+	public function getCurrentGroup(){
 		$this->initialiseCookie();
 
 		$group = $this->cookie->get('group');
@@ -534,6 +555,7 @@ class extension_group_lock extends Extension {
 		//if author has filtering and section has a 'group' field then filter by group id
 
 		$groupID = $this->getCurrentGroup();
+		$sectionID = (string)Symphony::Configuration()->get('section_id', 'group_lock');
 
 		if ($groupID && $groupID !=='all'){
 
@@ -546,12 +568,38 @@ class extension_group_lock extends Extension {
 			//fetch field of name group within section if available
 			$fieldID = (string)Symphony::Configuration()->get('section_'.$context['section-id'].'_field_id', 'group_lock');
 
-			if ($fieldID){
+			// var_dump($context['section-id']);die;
+			// var_dump($fieldID);die;
 
-				$context['joins'] .= " LEFT JOIN `tbl_entries_data_{$fieldID}` AS `group_lock_{$fieldID}` ON (`e`.`id` = `group_lock_{$fieldID}`.entry_id)";
-				$context['where'] .= " AND (`group_lock_{$fieldID}`.relation_id IN ('{$groupID}') )";
+			if ($fieldID){
+				$fieldRelatedTo = current(FieldManager::fetch(FieldManager::fetch($fieldID)->get('related_field_id')));
+				$parentSection = $fieldRelatedTo->get('parent_section');
+
+
+				if ($parentSection == $sectionID){
+
+					$context['joins'] .= " LEFT JOIN `tbl_entries_data_{$fieldID}` AS `group_lock_{$fieldID}` ON (`e`.`id` = `group_lock_{$fieldID}`.entry_id)";
+					$context['where'] .= " AND (`group_lock_{$fieldID}`.relation_id IN ('{$groupID}') )";
+
+				} else{
+
+					$linkedFieldId = (string)Symphony::Configuration()->get('section_'.$parentSection.'_field_id', 'group_lock');
+
+					$context['joins'] .= " LEFT JOIN `tbl_entries_data_{$fieldID}` AS `group_lock_{$fieldID}` ON (`e`.`id` = `group_lock_{$fieldID}`.entry_id)";
+					$context['joins'] .= " LEFT JOIN `tbl_entries_data_{$linkedFieldId}` AS `group_lock_{$linkedFieldId}` ON (`group_lock_{$fieldID}`.relation_id = `group_lock_{$linkedFieldId}`.entry_id)";
+					$context['where'] .= " AND (`group_lock_{$linkedFieldId}`.relation_id IN ('{$groupID}') )";
+
+				}
 
 			}
+
+
+			// if ($fieldID){
+
+			// 	$context['joins'] .= " LEFT JOIN `tbl_entries_data_{$fieldID}` AS `group_lock_{$fieldID}` ON (`e`.`id` = `group_lock_{$fieldID}`.entry_id)";
+			// 	$context['where'] .= " AND (`group_lock_{$fieldID}`.relation_id IN ('{$groupID}') )";
+
+			// }
 		}
 	}
 
@@ -735,7 +783,8 @@ class extension_group_lock extends Extension {
 			$selectedGroup = current(array_filter($groups,function($group) use ($currentGroupID){
 				return $group->get('id') == $currentGroupID;
 			}));
-			$selectedGroup = array('value' => $selectedGroup->getData('{$fieldID}')['value'], 'handle' => $selectedGroup->getData('{$fieldID}')['handle']);
+			$fieldID = $this->getMainSectionPrimaryFieldId();
+			$selectedGroup = array('value' => $selectedGroup->getData($fieldID)['value'], 'handle' => $selectedGroup->getData($fieldID)['handle']);
 		}
 
 		if( empty($selectedGroup)){
@@ -754,11 +803,13 @@ class extension_group_lock extends Extension {
 
 		$fieldID = $this->getMainSectionPrimaryFieldId();
 
+		$groupName = addslashes($selectedGroup['value']);
+
 		//if only one group no need to show a dropdown
 		if (sizeof($groups) <= 1){
 			$script = "jQuery(document).ready(function(){ 
-				jQuery('h1 a').text('{$selectedGroup['handle']}');
-				jQuery('h1 a').attr('href',jQuery('h1 a').attr('href') + 'view/' + '{$selectedGroup['handle']}' + '/');
+				jQuery('h1 a').text('{$groupName}');
+				// jQuery('h1 a').attr('href',jQuery('h1 a').attr('href') + 'view/' + '{$selectedGroup['handle']}' + '/');
 				if (window.location.pathname == Symphony.Context.get('symphony') + '/publish/general-info/'){
 					var link = $('#nav a').filter(function(index) { return $(this).text() === 'General Info'; });
 					window.location = link.attr('href');
@@ -776,7 +827,7 @@ class extension_group_lock extends Extension {
 			$options[] = array('all', 'all' == $currentGroupID , 'All');
 		}
 		foreach($groups as $group) {
-			$options[] = array($group->get('id'), $group->get('id') == $currentGroupID , $group->getData($fieldID)['value']);
+			$options[] = array($group->get('id'), $group->get('id') == $currentGroupID , MySQL::cleanValue($group->getData($fieldID)['value']));
 		}
 
 		//if this is an entry change link to a section
@@ -793,8 +844,8 @@ class extension_group_lock extends Extension {
 
 		$script = "jQuery(document).ready(function(){ 
 			jQuery('#nav').append('{$form->generate()}');
-			jQuery('h1 a').text('{$selectedGroup['handle']}');
-			jQuery('h1 a').attr('href',jQuery('h1 a').attr('href') + 'view/' + '{$selectedGroup['handle']}' + '/');
+			jQuery('h1 a').text('{$groupName}');
+			// jQuery('h1 a').attr('href',jQuery('h1 a').attr('href') + 'view/' + '{$selectedGroup['handle']}' + '/');
 			if (window.location.pathname == Symphony.Context.get('symphony') + '/publish/general-info/'){
 				var link = $('#nav a').filter(function(index) { return $(this).text() === 'General Info'; });
 				window.location = link.attr('href');
